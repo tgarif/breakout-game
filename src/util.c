@@ -246,6 +246,13 @@ void reverseInOrder(Node* node, Node* nil, void (*callback)(Key key, void* value
     reverseInOrder(node->left, nil, callback, context);
 }
 
+void traverseInOrder(Node* node, Node* nil, void (*callback)(Key key, void* value, void* context), void* context) {
+    if (node == nil) return;
+    traverseInOrder(node->left, nil, callback, context);
+    callback(node->key, node->value, context);
+    traverseInOrder(node->right, nil, callback, context);
+}
+
 void freeTree(Node* node, Node* nil) {
     if (node == nil) return;
     freeTree(node->left, nil);
