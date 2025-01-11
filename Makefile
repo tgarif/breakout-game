@@ -3,12 +3,12 @@ CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Iinclude -Iopengl/include
 
 # Linux-specific settings
-LDFLAGS_LINUX = -L./opengl/lib_linux -Wl,-rpath,./opengl/lib_linux -lglfw3 -lGLEW -ldl -lm -lGL -lassimp
+LDFLAGS_LINUX = -L./opengl/lib_linux -Wl,-rpath,./opengl/lib_linux -lglfw3 -lGLEW -ldl -lm -lGL -lassimp -lfreetype
 BUILDDIR_LINUX = build_linux
 TARGET_LINUX = $(BUILDDIR_LINUX)/breakout
 
 # Windows-specific settings
-LDFLAGS_WINDOWS = -L./opengl/lib_windows -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lkernel32 -lassimp
+LDFLAGS_WINDOWS = -L./opengl/lib_windows -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lkernel32 -lassimp -lfreetype
 BUILDDIR_WINDOWS = build_windows
 TARGET_WINDOWS = $(BUILDDIR_WINDOWS)/breakout.exe
 
