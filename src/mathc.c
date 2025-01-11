@@ -975,8 +975,10 @@ mfloat_t* vec2_min(mfloat_t* result, mfloat_t* v0, mfloat_t* v1)
 
 mfloat_t* vec2_clamp(mfloat_t* result, mfloat_t* v0, mfloat_t* v1, mfloat_t* v2)
 {
-    vec2_min(result, v0, v1);
-    vec2_max(result, v0, v2);
+    mfloat_t temp[2];
+
+    vec2_min(temp, v0, v2);
+    vec2_max(result, temp, v1);
     return result;
 }
 

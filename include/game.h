@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "mathc.h"
 #include "util.h"
 
 typedef enum {
@@ -10,6 +11,19 @@ typedef enum {
     GAME_MENU,
     GAME_WIN,
 } GameState;
+
+typedef enum {
+    UP,
+    RIGHT,
+    DOWN,
+    LEFT,
+} Direction;
+
+typedef struct {
+    bool hasCollision;
+    Direction direction;
+    mfloat_t collisionPoint[VEC2_SIZE];
+} Collision;
 
 typedef struct {
     GameState state;
@@ -24,6 +38,9 @@ void InitGame(Game* game);
 void ProcessGameInput(Game* game, float dt);
 void UpdateGame(Game* game, float dt);
 void RenderGame(Game* game);
-void DetroyGame(Game* game);
+void DoCollisions(Game* game);
+void ResetLevel(Game* game);
+void ResetPlayer(Game* game);
+void DetroyGame();
 
 #endif

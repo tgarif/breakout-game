@@ -1,6 +1,5 @@
 #include "ball_object.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "game_object.h"
