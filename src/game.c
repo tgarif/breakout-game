@@ -17,6 +17,9 @@
 #include "sprite_renderer.h"
 #include "util.h"
 
+#define MINIAUDIO_IMPLEMENTATION
+#include "miniaudio.h"
+
 const mfloat_t PLAYER_SIZE[VEC2_SIZE] = {100.0f, 20.0f};
 const float PLAYER_VELOCITY = 500.0f;
 const mfloat_t INITIAL_BALL_VELOCITY[VEC2_SIZE] = {100.0f, -350.0f};
@@ -28,6 +31,7 @@ static SpriteRenderer* renderer = NULL;
 static GameObject* player = NULL;
 static BallObject* ball = NULL;
 static PostProcessor* effects = NULL;
+static ma_engine engine;
 
 static Direction VectorDirection(mfloat_t* target) {
     mfloat_t* compass[4] = {
@@ -203,6 +207,9 @@ void InitGame(Game* game) {
     mfloat_t ballPos[VEC2_SIZE];
     vec2_add(ballPos, playerPos, (mfloat_t[VEC2_SIZE]){PLAYER_SIZE[0] / 2.0f - BALL_RADIUS, -BALL_RADIUS * 2.0f});
     ball = NewBallObject(ballPos, BALL_RADIUS, (mfloat_t*)INITIAL_BALL_VELOCITY, GetTexture("face"));
+    // Audio
+    ma_engine_init(NULL, &engine);
+    ma_engine_play_sound(&engine, "audio/breakout.mp3", NULL);
 }
 
 void ProcessGameInput(Game* game, float dt) {
@@ -289,9 +296,11 @@ void DoCollisions(Game* game) {
                 if (!(*box)->isSolid) {
                     (*box)->destroyed = true;
                     SpawnPowerUps(game, *box);
+                    ma_engine_play_sound(&engine, "audio/bleep.mp3", NULL);
                 } else {
                     shakeTime = 0.05f;
                     effects->shake = true;
+                    ma_engine_play_sound(&engine, "audio/solid.wav", NULL);
                 }
 
                 if (!(ball->passthrough && !(*box)->isSolid)) {
@@ -323,6 +332,7 @@ void DoCollisions(Game* game) {
                 ActivatePowerUp(*powerUp);
                 (*powerUp)->base.destroyed = true;
                 (*powerUp)->activated = true;
+                ma_engine_play_sound(&engine, "audio/powerup.wav", NULL);
             }
         }
     }
@@ -340,6 +350,7 @@ void DoCollisions(Game* game) {
         ball->base.velocity[1] = -1.0f * MFABS(ball->base.velocity[1]);
 
         ball->stuck = ball->sticky;
+        ma_engine_play_sound(&engine, "audio/bleep.wav", NULL);
     }
 }
 
@@ -436,4 +447,5 @@ void DetroyGame() {
     if (effects) {
         CleanupPostProcess(effects);
     }
+    ma_engine_uninit(&engine);
 }
