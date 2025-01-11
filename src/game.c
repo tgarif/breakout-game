@@ -9,6 +9,7 @@
 #include "game_level.h"
 #include "game_object.h"
 #include "mathc.h"
+#include "particle_generator.h"
 #include "resource_manager.h"
 #include "shader.h"
 #include "sprite_renderer.h"
@@ -92,19 +93,28 @@ Game* NewGame(Game* game, unsigned int width, unsigned int height) {
 }
 
 void InitGame(Game* game) {
+    // Load shaders
     Shader spriteShaderId = LoadShader("shaders/sprite.vs", "shaders/sprite.frag", NULL, "sprite");
+    Shader particleShaderId = LoadShader("shaders/particle.vs", "shaders/particle.frag", NULL, "particle");
+    // Configure shaders
     mfloat_t projection[MAT4_SIZE];
     mat4_ortho(projection, 0.0f, (float)game->width, (float)game->height, 0.0f, -1.0f, 1.0f);
     UseShader(spriteShaderId);
     setInteger(spriteShaderId, "image", 0, false);
     setMat4fv(spriteShaderId, "projection", projection, false);
-    renderer = NewSpriteRenderer(spriteShaderId);
+    UseShader(particleShaderId);
+    setInteger(particleShaderId, "sprite", 0, false);
+    setMat4fv(particleShaderId, "projection", projection, false);
     // Load textures
     LoadTexture("textures/background.jpg", false, "background");
     LoadTexture("textures/awesomeface.png", true, "face");
     LoadTexture("textures/block.png", false, "block");
     LoadTexture("textures/block_solid.png", false, "block_solid");
     LoadTexture("textures/paddle.png", true, "paddle");
+    LoadTexture("textures/particle.png", true, "particle");
+    // Set render-specific controls
+    renderer = NewSpriteRenderer(spriteShaderId);
+    NewParticleGenerator(particleShaderId, GetTexture("particle"), 500);
     // Load levels
     GameLevel* one = NewGameLevel();
     LoadLevel(one, "levels/one.lvl", game->width, game->height / 2);
@@ -156,6 +166,7 @@ void ProcessGameInput(Game* game, float dt) {
 void UpdateGame(Game* game, float dt) {
     MoveBall(ball, dt, game->width);
     DoCollisions(game);
+    UpdateParticle(dt, ball, 2, (mfloat_t[VEC2_SIZE]){ball->radius / 2.0f, ball->radius / 2.0f});
     if (ball->base.position[1] >= game->height) {
         ResetLevel(game);
         ResetPlayer(game);
@@ -178,6 +189,8 @@ void RenderGame(Game* game) {
         DrawLevel(level, renderer);
         // Draw player
         DrawGameObject(player, renderer);
+        // Draw particles
+        DrawParticle();
         // Draw ball
         DrawBall(ball, renderer);
     }
