@@ -10,6 +10,7 @@ typedef struct {
     GameObject base;
     float radius;
     bool stuck;
+    bool sticky, passthrough;
 } BallObject;
 
 BallObject* NewBallObject(mfloat_t* pos, float radius, mfloat_t* velocity, Texture2D* sprite);

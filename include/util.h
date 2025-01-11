@@ -1,6 +1,7 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,6 +20,11 @@ char* custom_strdup(const char* str);
 #define DYNAMIC_ARRAY_FOR_EACH_PTR(arr, type, var) \
     for (type** var = (type**)((arr)->array), ** end = var + (arr)->size; var < end; ++var)
 
+#define SET_ARRAY_VAL(arr, size, value)   \
+    for (size_t i = 0; i < (size); i++) { \
+        (arr)[i] = (value);               \
+    }
+
 /*
  * DynamicArray
  */
@@ -33,6 +39,8 @@ void initialize(DynamicArray* dynArray, size_t initialCapacity, size_t elementSi
 void push(DynamicArray* dynArray, const void* value);
 void pushPtr(DynamicArray* dynArray, const void* value);
 void insert(DynamicArray* dynArray, size_t position, const void* start, size_t count);
+size_t remove_if(DynamicArray* dynArray, bool (*predicate)(const void*));
+void erase(DynamicArray* dynArray, size_t start, size_t end);
 void clearArray(DynamicArray* dynArray, void (*cleanupCallback)(void*));
 void cleanup(DynamicArray* dynArray, void (*cleanupCallback)(void*));
 

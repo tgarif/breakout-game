@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "game_object.h"
 #include "mathc.h"
 #include "util.h"
 
@@ -31,6 +32,7 @@ typedef struct {
     unsigned int width, height;
     DynamicArray levels;
     unsigned int level;
+    DynamicArray powerups;
 } Game;
 
 Game* NewGame(Game* game, unsigned int width, unsigned int height);
@@ -41,6 +43,8 @@ void RenderGame(Game* game);
 void DoCollisions(Game* game);
 void ResetLevel(Game* game);
 void ResetPlayer(Game* game);
+void SpawnPowerUps(Game* game, GameObject* block);
+void UpdatePowerUps(Game* game, float dt);
 void DetroyGame();
 
 #endif

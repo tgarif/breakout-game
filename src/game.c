@@ -10,19 +10,24 @@
 #include "game_object.h"
 #include "mathc.h"
 #include "particle_generator.h"
+#include "post_processing.h"
+#include "power_up.h"
 #include "resource_manager.h"
 #include "shader.h"
 #include "sprite_renderer.h"
+#include "util.h"
 
 const mfloat_t PLAYER_SIZE[VEC2_SIZE] = {100.0f, 20.0f};
 const float PLAYER_VELOCITY = 500.0f;
 const mfloat_t INITIAL_BALL_VELOCITY[VEC2_SIZE] = {100.0f, -350.0f};
-/* const mfloat_t INITIAL_BALL_VELOCITY[VEC2_SIZE] = {200.0f, -550.0f}; */
 const float BALL_RADIUS = 12.5f;
+
+float shakeTime = 0.0f;
 
 static SpriteRenderer* renderer = NULL;
 static GameObject* player = NULL;
 static BallObject* ball = NULL;
+static PostProcessor* effects = NULL;
 
 static Direction VectorDirection(mfloat_t* target) {
     mfloat_t* compass[4] = {
@@ -47,7 +52,15 @@ static Direction VectorDirection(mfloat_t* target) {
     return (Direction)best_match;
 }
 
-static Collision CheckCollision(BallObject* one, GameObject* two) {
+static bool CheckCollisionPowerUp(GameObject* one, PowerUp* two) {
+    bool collisionX = one->position[0] + one->size[0] >= two->base.position[0] &&
+                      two->base.position[0] + two->base.size[0] >= one->position[0];
+    bool collisionY = one->position[1] + one->size[1] >= two->base.position[1] &&
+                      two->base.position[1] + two->base.size[1] >= one->position[1];
+    return collisionX && collisionY;
+}
+
+static Collision CheckCollisionBall(BallObject* one, GameObject* two) {
     mfloat_t center[VEC2_SIZE];
     vec2_add_f(center, one->base.position, one->radius);
 
@@ -81,6 +94,49 @@ static Collision CheckCollision(BallObject* one, GameObject* two) {
     }
 }
 
+static bool isOtherPowerUpActive(DynamicArray* powerups, char* type) {
+    DYNAMIC_ARRAY_FOR_EACH_PTR(powerups, PowerUp, powerUp) {
+        if ((*powerUp)->activated)
+            if (strcmp((*powerUp)->type, type) == 0)
+                return true;
+    }
+    return false;
+}
+
+static bool isPowerUpRemovable(const void* element) {
+    PowerUp* powerUp = *(PowerUp**)element;
+    return powerUp->base.destroyed && !powerUp->activated;
+}
+
+static bool ShouldSpawn(unsigned int chance) {
+    unsigned int random = rand() % chance;
+    return random == 0;
+}
+
+static void ActivatePowerUp(PowerUp* powerup) {
+    if (strcmp(powerup->type, "speed") == 0) {
+        vec2_multiply_f(ball->base.velocity, ball->base.velocity, 1.2);
+    } else if (strcmp(powerup->type, "sticky") == 0) {
+        ball->sticky = true;
+        player->color[0] = 1.0f;
+        player->color[1] = 0.5f;
+        player->color[2] = 1.0f;
+    } else if (strcmp(powerup->type, "pass-through") == 0) {
+        ball->passthrough = true;
+        ball->base.color[0] = 1.0f;
+        ball->base.color[1] = 0.5f;
+        ball->base.color[2] = 0.5f;
+    } else if (strcmp(powerup->type, "pad-size-increase") == 0) {
+        player->size[0] += 50;
+    } else if (strcmp(powerup->type, "confuse") == 0) {
+        if (!effects->chaos)
+            effects->confuse = true;
+    } else if (strcmp(powerup->type, "chaos") == 0) {
+        if (!effects->confuse)
+            effects->chaos = true;
+    }
+}
+
 Game* NewGame(Game* game, unsigned int width, unsigned int height) {
     *game = (Game){
         .state = GAME_ACTIVE,
@@ -89,6 +145,7 @@ Game* NewGame(Game* game, unsigned int width, unsigned int height) {
         .keys = {false},
     };
     initialize(&game->levels, 4, sizeof(GameLevel*));
+    initialize(&game->powerups, 128, sizeof(PowerUp*));
     return game;
 }
 
@@ -96,6 +153,7 @@ void InitGame(Game* game) {
     // Load shaders
     Shader spriteShaderId = LoadShader("shaders/sprite.vs", "shaders/sprite.frag", NULL, "sprite");
     Shader particleShaderId = LoadShader("shaders/particle.vs", "shaders/particle.frag", NULL, "particle");
+    Shader effectsShaderId = LoadShader("shaders/post_processing.vs", "shaders/post_processing.frag", NULL, "postprocessing");
     // Configure shaders
     mfloat_t projection[MAT4_SIZE];
     mat4_ortho(projection, 0.0f, (float)game->width, (float)game->height, 0.0f, -1.0f, 1.0f);
@@ -112,9 +170,16 @@ void InitGame(Game* game) {
     LoadTexture("textures/block_solid.png", false, "block_solid");
     LoadTexture("textures/paddle.png", true, "paddle");
     LoadTexture("textures/particle.png", true, "particle");
+    LoadTexture("textures/powerup_speed.png", true, "powerup_speed");
+    LoadTexture("textures/powerup_sticky.png", true, "powerup_sticky");
+    LoadTexture("textures/powerup_increase.png", true, "powerup_increase");
+    LoadTexture("textures/powerup_confuse.png", true, "powerup_confuse");
+    LoadTexture("textures/powerup_chaos.png", true, "powerup_chaos");
+    LoadTexture("textures/powerup_passthrough.png", true, "powerup_passthrough");
     // Set render-specific controls
     renderer = NewSpriteRenderer(spriteShaderId);
     NewParticleGenerator(particleShaderId, GetTexture("particle"), 500);
+    effects = NewPostProcessor(effectsShaderId, game->width, game->height);
     // Load levels
     GameLevel* one = NewGameLevel();
     LoadLevel(one, "levels/one.lvl", game->width, game->height / 2);
@@ -164,9 +229,21 @@ void ProcessGameInput(Game* game, float dt) {
 }
 
 void UpdateGame(Game* game, float dt) {
+    // Update objects
     MoveBall(ball, dt, game->width);
+    // Check for collisions
     DoCollisions(game);
+    // Update particles
     UpdateParticle(dt, ball, 2, (mfloat_t[VEC2_SIZE]){ball->radius / 2.0f, ball->radius / 2.0f});
+    // Update powerups
+    UpdatePowerUps(game, dt);
+    // Reduce shake time
+    if (shakeTime > 0.0f) {
+        shakeTime -= dt;
+        if (shakeTime <= 0.0f)
+            effects->shake = false;
+    }
+    // Check loss condition
     if (ball->base.position[1] >= game->height) {
         ResetLevel(game);
         ResetPlayer(game);
@@ -175,6 +252,7 @@ void UpdateGame(Game* game, float dt) {
 
 void RenderGame(Game* game) {
     if (game->state == GAME_ACTIVE) {
+        BeginPostProcessRender();
         // Draw background
         DrawSprite(
             renderer,
@@ -189,10 +267,16 @@ void RenderGame(Game* game) {
         DrawLevel(level, renderer);
         // Draw player
         DrawGameObject(player, renderer);
+        DYNAMIC_ARRAY_FOR_EACH_PTR(&game->powerups, PowerUp, powerUp) {
+            if (!(*powerUp)->base.destroyed)
+                DrawPowerUp(*powerUp, renderer);
+        }
         // Draw particles
         DrawParticle();
         // Draw ball
         DrawBall(ball, renderer);
+        EndPostProcessRender(effects);
+        RenderPostProcess(effects, glfwGetTime());
     }
 }
 
@@ -200,30 +284,49 @@ void DoCollisions(Game* game) {
     GameLevel* level = ((GameLevel**)(game->levels.array))[game->level];
     DYNAMIC_ARRAY_FOR_EACH_PTR(&level->bricks, GameObject, box) {
         if (!(*box)->destroyed) {
-            Collision collision = CheckCollision(ball, *box);
+            Collision collision = CheckCollisionBall(ball, *box);
             if (collision.hasCollision) {
-                if (!(*box)->isSolid)
+                if (!(*box)->isSolid) {
                     (*box)->destroyed = true;
-
-                if (collision.direction == LEFT || collision.direction == RIGHT) {
-                    ball->base.velocity[0] = -ball->base.velocity[0];
-                    float penetration = ball->radius - MFABS(collision.collisionPoint[0]);
-                    if (collision.direction == LEFT)
-                        ball->base.position[0] += penetration;
-                    else
-                        ball->base.position[0] -= penetration;
+                    SpawnPowerUps(game, *box);
                 } else {
-                    ball->base.velocity[1] = -ball->base.velocity[1];
-                    float penetration = ball->radius - MFABS(collision.collisionPoint[1]);
-                    if (collision.direction == UP)
-                        ball->base.position[1] -= penetration;
-                    else
-                        ball->base.position[1] += penetration;
+                    shakeTime = 0.05f;
+                    effects->shake = true;
+                }
+
+                if (!(ball->passthrough && !(*box)->isSolid)) {
+                    if (collision.direction == LEFT || collision.direction == RIGHT) {
+                        ball->base.velocity[0] = -ball->base.velocity[0];
+                        float penetration = ball->radius - MFABS(collision.collisionPoint[0]);
+                        if (collision.direction == LEFT)
+                            ball->base.position[0] += penetration;
+                        else
+                            ball->base.position[0] -= penetration;
+                    } else {
+                        ball->base.velocity[1] = -ball->base.velocity[1];
+                        float penetration = ball->radius - MFABS(collision.collisionPoint[1]);
+                        if (collision.direction == UP)
+                            ball->base.position[1] -= penetration;
+                        else
+                            ball->base.position[1] += penetration;
+                    }
                 }
             }
         }
     }
-    Collision result = CheckCollision(ball, player);
+    DYNAMIC_ARRAY_FOR_EACH_PTR(&game->powerups, PowerUp, powerUp) {
+        if (!(*powerUp)->base.destroyed) {
+            if ((*powerUp)->base.position[1] >= game->height)
+                (*powerUp)->base.destroyed = true;
+
+            if (CheckCollisionPowerUp(player, *powerUp)) {
+                ActivatePowerUp(*powerUp);
+                (*powerUp)->base.destroyed = true;
+                (*powerUp)->activated = true;
+            }
+        }
+    }
+    Collision result = CheckCollisionBall(ball, player);
     if (!ball->stuck && result.hasCollision) {
         float centerBoard = player->position[0] + player->size[0] / 2.0f;
         float distance = (ball->base.position[0] + ball->radius) - centerBoard;
@@ -235,6 +338,8 @@ void DoCollisions(Game* game) {
         ball->base.velocity[0] = INITIAL_BALL_VELOCITY[0] * percentage * strength;
         vec2_multiply_f(ball->base.velocity, vec2_normalize(ball->base.velocity, ball->base.velocity), vec2_length(oldVelocity));
         ball->base.velocity[1] = -1.0f * MFABS(ball->base.velocity[1]);
+
+        ball->stuck = ball->sticky;
     }
 }
 
@@ -250,11 +355,72 @@ void ResetLevel(Game* game) {
 }
 
 void ResetPlayer(Game* game) {
+    // reset player/ball stats
     vec2_assign(player->size, (mfloat_t*)PLAYER_SIZE);
     vec2_assign(player->position, (mfloat_t[]){game->width / 2.0f - PLAYER_SIZE[0] / 2.0f, game->height - PLAYER_SIZE[1]});
     mfloat_t ballPos[VEC2_SIZE];
     vec2_add(ballPos, player->position, (mfloat_t[]){PLAYER_SIZE[0] / 2.0f - BALL_RADIUS, -(BALL_RADIUS * 2.0f)});
     ResetBall(ball, ballPos, (mfloat_t*)INITIAL_BALL_VELOCITY);
+    // also disable all active powerups
+    effects->chaos = effects->confuse = false;
+    ball->passthrough = ball->sticky = false;
+    SET_ARRAY_VAL(player->color, VEC3_SIZE, 1.0f);
+    SET_ARRAY_VAL(ball->base.color, VEC3_SIZE, 1.0f);
+}
+
+void UpdatePowerUps(Game* game, float dt) {
+    DYNAMIC_ARRAY_FOR_EACH_PTR(&game->powerups, PowerUp, powerUp) {
+        PowerUp* powerup = *powerUp;
+        mfloat_t multiply[VEC2_SIZE];
+        vec2_add(powerup->base.position, powerup->base.position, vec2_multiply_f(multiply, powerup->base.velocity, dt));
+        if (powerup->activated) {
+            powerup->duration -= dt;
+
+            if (powerup->duration <= 0.0f) {
+                powerup->activated = false;
+
+                if (strcmp(powerup->type, "sticky") == 0) {
+                    if (!isOtherPowerUpActive(&game->powerups, "sticky")) {
+                        ball->sticky = false;
+                        SET_ARRAY_VAL(player->color, VEC3_SIZE, 1.0f);
+                    }
+                } else if (strcmp(powerup->type, "pass-through") == 0) {
+                    if (!isOtherPowerUpActive(&game->powerups, "pass-through")) {
+                        ball->passthrough = false;
+                        SET_ARRAY_VAL(ball->base.color, VEC3_SIZE, 1.0f);
+                    }
+                } else if (strcmp(powerup->type, "confuse") == 0) {
+                    if (!isOtherPowerUpActive(&game->powerups, "confuse")) {
+                        effects->confuse = false;
+                    }
+                } else if (strcmp(powerup->type, "chaos") == 0) {
+                    if (!isOtherPowerUpActive(&game->powerups, "chaos")) {
+                        effects->chaos = false;
+                    }
+                }
+            }
+        }
+    }
+
+    size_t newEnd = remove_if(&game->powerups, isPowerUpRemovable);
+    if (newEnd > 0 && newEnd < game->powerups.size) {
+        erase(&game->powerups, newEnd, game->powerups.size);
+    }
+}
+
+void SpawnPowerUps(Game* game, GameObject* block) {
+    if (ShouldSpawn(75))
+        pushPtr(&game->powerups, NewPowerUp("speed", (mfloat_t[VEC3_SIZE]){0.5f, 0.5f, 0.5f}, 0.0f, block->position, GetTexture("powerup_speed")));
+    if (ShouldSpawn(75))
+        pushPtr(&game->powerups, NewPowerUp("sticky", (mfloat_t[VEC3_SIZE]){1.0f, 0.5f, 1.0f}, 20.0f, block->position, GetTexture("powerup_sticky")));
+    if (ShouldSpawn(75))
+        pushPtr(&game->powerups, NewPowerUp("pass-through", (mfloat_t[VEC3_SIZE]){0.5f, 1.0f, 0.5f}, 10.0f, block->position, GetTexture("powerup_passthrough")));
+    if (ShouldSpawn(75))
+        pushPtr(&game->powerups, NewPowerUp("pad-size-increase", (mfloat_t[VEC3_SIZE]){1.0f, 0.6f, 0.4f}, 0.0f, block->position, GetTexture("powerup_increase")));
+    if (ShouldSpawn(15))
+        pushPtr(&game->powerups, NewPowerUp("confuse", (mfloat_t[VEC3_SIZE]){1.0f, 0.3f, 0.3f}, 15.0f, block->position, GetTexture("powerup_confuse")));
+    if (ShouldSpawn(15))
+        pushPtr(&game->powerups, NewPowerUp("chaos", (mfloat_t[VEC3_SIZE]){0.9f, 0.25f, 0.25f}, 15.0f, block->position, GetTexture("powerup_chaos")));
 }
 
 void DetroyGame() {
@@ -266,5 +432,8 @@ void DetroyGame() {
     }
     if (ball) {
         CleanupBallObject(ball);
+    }
+    if (effects) {
+        CleanupPostProcess(effects);
     }
 }

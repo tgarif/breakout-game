@@ -147,6 +147,43 @@ void insert(DynamicArray* dynArray, size_t position, const void* start, size_t c
     dynArray->size += count;
 }
 
+size_t remove_if(DynamicArray* dynArray, bool (*predicate)(const void*)) {
+    char* base = (char*)dynArray->array;
+    size_t writeIndex = 0;
+
+    for (size_t i = 0; i < dynArray->size; i++) {
+        void* element = base + i * dynArray->elementSize;
+
+        if (!predicate(element)) {
+            if (writeIndex != i) {
+                memcpy(base + writeIndex * dynArray->elementSize, element, dynArray->elementSize);
+            }
+            writeIndex++;
+        }
+    }
+
+    return writeIndex;
+}
+
+void erase(DynamicArray* dynArray, size_t start, size_t end) {
+    if (start >= dynArray->size || end > dynArray->size || start > end) {
+        fprintf(stderr, "Error: Invalid erase range.\n");
+        return;
+    }
+
+    char* base = (char*)dynArray->array;
+
+    for (size_t i = start; i < end; i++) {
+        *(void**)(base + i * dynArray->elementSize) = NULL;
+    }
+
+    memmove(base + start * dynArray->elementSize,
+        base + end * dynArray->elementSize,
+        (dynArray->size - end) * dynArray->elementSize);
+
+    dynArray->size -= (end - start);
+}
+
 void clearArray(DynamicArray* dynArray, void (*cleanupCallback)(void*)) {
     if (cleanupCallback) {
         for (size_t i = 0; i < dynArray->size; i++) {

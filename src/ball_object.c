@@ -34,6 +34,8 @@ BallObject* NewBallObject(mfloat_t* pos, float radius, mfloat_t* velocity, Textu
 
     ball->radius = radius;
     ball->stuck = true;
+    ball->sticky = false;
+    ball->passthrough = false;
 
     return ball;
 }
@@ -77,4 +79,6 @@ void ResetBall(BallObject* ballObj, mfloat_t* position, mfloat_t* velocity) {
     vec2_assign(ballObj->base.position, position);
     vec2_assign(ballObj->base.velocity, velocity);
     ballObj->stuck = true;
+    ballObj->sticky = false;
+    ballObj->passthrough = false;
 }
