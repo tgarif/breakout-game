@@ -15,6 +15,7 @@
 #include "resource_manager.h"
 #include "shader.h"
 #include "sprite_renderer.h"
+#include "text_renderer.h"
 #include "util.h"
 
 #define MINIAUDIO_IMPLEMENTATION
@@ -32,6 +33,7 @@ static GameObject* player = NULL;
 static BallObject* ball = NULL;
 static PostProcessor* effects = NULL;
 static ma_engine engine;
+static TextRenderer* text = NULL;
 
 static Direction VectorDirection(mfloat_t* target) {
     mfloat_t* compass[4] = {
@@ -147,6 +149,7 @@ Game* NewGame(Game* game, unsigned int width, unsigned int height) {
         .width = width,
         .height = height,
         .keys = {false},
+        .lives = 3,
     };
     initialize(&game->levels, 4, sizeof(GameLevel*));
     initialize(&game->powerups, 128, sizeof(PowerUp*));
@@ -210,6 +213,9 @@ void InitGame(Game* game) {
     // Audio
     ma_engine_init(NULL, &engine);
     ma_engine_play_sound(&engine, "audio/breakout.mp3", NULL);
+    // Text
+    text = NewTextRenderer(game->width, game->height);
+    LoadText(text, "fonts/ocraext.TTF", 24);
 }
 
 void ProcessGameInput(Game* game, float dt) {
@@ -252,7 +258,11 @@ void UpdateGame(Game* game, float dt) {
     }
     // Check loss condition
     if (ball->base.position[1] >= game->height) {
-        ResetLevel(game);
+        --game->lives;
+        if (game->lives == 0) {
+            ResetLevel(game);
+            game->state = GAME_MENU;
+        }
         ResetPlayer(game);
     }
 }
@@ -284,6 +294,10 @@ void RenderGame(Game* game) {
         DrawBall(ball, renderer);
         EndPostProcessRender(effects);
         RenderPostProcess(effects, glfwGetTime());
+
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "Lives:%u", game->lives);
+        RenderText(text, buffer, 5.0f, 5.0f, 1.0f, NULL);
     }
 }
 
@@ -357,12 +371,14 @@ void DoCollisions(Game* game) {
 void ResetLevel(Game* game) {
     if (game->level == 0)
         LoadLevel(((GameLevel**)(game->levels.array))[0], "levels/one.lvl", game->width, game->height / 2);
-    if (game->level == 1)
+    else if (game->level == 1)
         LoadLevel(((GameLevel**)(game->levels.array))[1], "levels/two.lvl", game->width, game->height / 2);
-    if (game->level == 2)
+    else if (game->level == 2)
         LoadLevel(((GameLevel**)(game->levels.array))[2], "levels/three.lvl", game->width, game->height / 2);
-    if (game->level == 3)
+    else if (game->level == 3)
         LoadLevel(((GameLevel**)(game->levels.array))[3], "levels/four.lvl", game->width, game->height / 2);
+
+    game->lives = 3;
 }
 
 void ResetPlayer(Game* game) {
@@ -420,18 +436,19 @@ void UpdatePowerUps(Game* game, float dt) {
 }
 
 void SpawnPowerUps(Game* game, GameObject* block) {
-    if (ShouldSpawn(75))
+    if (ShouldSpawn(75)) {
         pushPtr(&game->powerups, NewPowerUp("speed", (mfloat_t[VEC3_SIZE]){0.5f, 0.5f, 0.5f}, 0.0f, block->position, GetTexture("powerup_speed")));
-    if (ShouldSpawn(75))
+    } else if (ShouldSpawn(75)) {
         pushPtr(&game->powerups, NewPowerUp("sticky", (mfloat_t[VEC3_SIZE]){1.0f, 0.5f, 1.0f}, 20.0f, block->position, GetTexture("powerup_sticky")));
-    if (ShouldSpawn(75))
+    } else if (ShouldSpawn(75)) {
         pushPtr(&game->powerups, NewPowerUp("pass-through", (mfloat_t[VEC3_SIZE]){0.5f, 1.0f, 0.5f}, 10.0f, block->position, GetTexture("powerup_passthrough")));
-    if (ShouldSpawn(75))
+    } else if (ShouldSpawn(75)) {
         pushPtr(&game->powerups, NewPowerUp("pad-size-increase", (mfloat_t[VEC3_SIZE]){1.0f, 0.6f, 0.4f}, 0.0f, block->position, GetTexture("powerup_increase")));
-    if (ShouldSpawn(15))
+    } else if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("confuse", (mfloat_t[VEC3_SIZE]){1.0f, 0.3f, 0.3f}, 15.0f, block->position, GetTexture("powerup_confuse")));
-    if (ShouldSpawn(15))
+    } else if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("chaos", (mfloat_t[VEC3_SIZE]){0.9f, 0.25f, 0.25f}, 15.0f, block->position, GetTexture("powerup_chaos")));
+    }
 }
 
 void DetroyGame() {

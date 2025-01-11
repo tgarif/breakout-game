@@ -377,6 +377,11 @@ void traverseInOrder(Node* node, Node* nil, void (*callback)(Key key, void* valu
     traverseInOrder(node->right, nil, callback, context);
 }
 
+void clearMap(DynamicMap* map) {
+    freeTree(map->root, map->nil);
+    map->root = map->nil;
+}
+
 void freeTree(Node* node, Node* nil) {
     if (node == nil) return;
     freeTree(node->left, nil);

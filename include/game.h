@@ -33,6 +33,7 @@ typedef struct {
     DynamicArray levels;
     unsigned int level;
     DynamicArray powerups;
+    unsigned int lives;
 } Game;
 
 Game* NewGame(Game* game, unsigned int width, unsigned int height);

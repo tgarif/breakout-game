@@ -85,6 +85,7 @@ void insertIntoMap(DynamicMap* map, Key key, void* value);
 void* getFromMap(DynamicMap* map, Key key);
 void reverseInOrder(Node* node, Node* nil, void (*callback)(Key key, void* value, void* context), void* context);
 void traverseInOrder(Node* node, Node* nil, void (*callback)(Key key, void* value, void* context), void* context);
+void clearMap(DynamicMap* map);
 void freeTree(Node* node, Node* nil);
 void freeMap(DynamicMap* map);
 
