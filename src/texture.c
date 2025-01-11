@@ -18,7 +18,7 @@ Texture2D* NewTexture() {
     return texture;
 }
 
-void TextureGenerate(Texture2D* texture, unsigned int width, unsigned int height, unsigned char* data) {
+void GenerateTexture(Texture2D* texture, unsigned int width, unsigned int height, unsigned char* data) {
     texture->width = width;
     texture->height = height;
 
@@ -33,6 +33,6 @@ void TextureGenerate(Texture2D* texture, unsigned int width, unsigned int height
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void TextureBind(Texture2D* texture) {
+void BindTexture(Texture2D* texture) {
     glBindTexture(GL_TEXTURE_2D, texture->ID);
 }

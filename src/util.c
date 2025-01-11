@@ -1,9 +1,50 @@
 #include "util.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+long getline(char** lineptr, size_t* n, FILE* stream) {
+    if (!lineptr || !n || !stream) {
+        return -1;  // Invalid arguments
+    }
+
+    if (*lineptr == NULL) {
+        *n = 128;  // Initial buffer size
+        *lineptr = malloc(*n);
+        if (!*lineptr) {
+            return -1;  // Memory allocation failure
+        }
+    }
+
+    size_t pos = 0;
+    int c;
+
+    while ((c = fgetc(stream)) != EOF) {
+        if (pos + 1 >= *n) {  // Resize buffer if needed
+            size_t new_size = *n * 2;
+            char* new_lineptr = realloc(*lineptr, new_size);
+            if (!new_lineptr) {
+                return -1;  // Memory allocation failure
+            }
+            *lineptr = new_lineptr;
+            *n = new_size;
+        }
+
+        (*lineptr)[pos++] = (char)c;
+
+        if (c == '\n') {  // Stop reading at newline
+            break;
+        }
+    }
+
+    if (pos == 0 && c == EOF) {
+        return -1;  // End of file without reading anything
+    }
+
+    (*lineptr)[pos] = '\0';  // Null-terminate the string
+    return pos;              // Return the number of characters read
+}
 
 char* readFile(const char* filename) {
     FILE* fp;
@@ -30,6 +71,27 @@ char* readFile(const char* filename) {
     return content;
 }
 
+void readAndProcessLine(const char* filename, void (*processLine)(const char* line, void* context), void* context) {
+    FILE* fp = fopen(filename, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Couldn't open file %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+
+    char* line = NULL;
+    size_t len = 0;
+    long read;
+
+    while ((read = getline(&line, &len, fp)) != -1) {
+        line[strcspn(line, "\n")] = '\0';
+
+        processLine(line, context);
+    }
+
+    free(line);
+    fclose(fp);
+}
+
 char* custom_strdup(const char* str) {
     if (!str) return NULL;
     size_t len = strlen(str) + 1;
@@ -51,6 +113,15 @@ void push(DynamicArray* dynArray, const void* value) {
         dynArray->array = realloc(dynArray->array, dynArray->capacity * dynArray->elementSize);
     }
     memcpy((char*)dynArray->array + dynArray->size * dynArray->elementSize, value, dynArray->elementSize);
+    dynArray->size++;
+}
+
+void pushPtr(DynamicArray* dynArray, const void* value) {
+    if (dynArray->size == dynArray->capacity) {
+        dynArray->capacity *= 2;
+        dynArray->array = realloc(dynArray->array, dynArray->capacity * dynArray->elementSize);
+    }
+    memcpy((char*)dynArray->array + dynArray->size * dynArray->elementSize, &value, dynArray->elementSize);
     dynArray->size++;
 }
 
@@ -76,7 +147,23 @@ void insert(DynamicArray* dynArray, size_t position, const void* start, size_t c
     dynArray->size += count;
 }
 
-void cleanup(DynamicArray* dynArray) {
+void clearArray(DynamicArray* dynArray, void (*cleanupCallback)(void*)) {
+    if (cleanupCallback) {
+        for (size_t i = 0; i < dynArray->size; i++) {
+            void* element = (char*)dynArray->array + i * dynArray->elementSize;
+            cleanupCallback(element);
+        }
+    }
+    dynArray->size = 0;
+}
+
+void cleanup(DynamicArray* dynArray, void (*cleanupCallback)(void*)) {
+    if (cleanupCallback) {
+        for (size_t i = 0; i < dynArray->size; i++) {
+            void* element = (char*)dynArray->array + i * dynArray->elementSize;
+            cleanupCallback(element);
+        }
+    }
     free(dynArray->array);
     dynArray->array = NULL;
     dynArray->size = dynArray->capacity = dynArray->elementSize = 0;

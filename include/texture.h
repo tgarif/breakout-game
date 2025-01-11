@@ -13,7 +13,7 @@ typedef struct {
 } Texture2D;
 
 Texture2D* NewTexture();
-void TextureGenerate(Texture2D* texture, unsigned int width, unsigned int height, unsigned char* data);
-void TextureBind(Texture2D* texture);
+void GenerateTexture(Texture2D* texture, unsigned int width, unsigned int height, unsigned char* data);
+void BindTexture(Texture2D* texture);
 
 #endif

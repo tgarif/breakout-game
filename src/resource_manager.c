@@ -23,7 +23,11 @@ static void initializeResourceManager() {
 static Shader loadShaderFromFile(const char* vShaderFile, const char* fShaderFile, const char* gShaderFile) {
     char* vShaderCode = readFile(vShaderFile);
     char* fShaderCode = readFile(fShaderFile);
-    char* gShaderCode = readFile(gShaderFile);
+    char* gShaderCode = NULL;
+
+    if (gShaderFile) {
+        gShaderCode = readFile(gShaderFile);
+    }
 
     Shader shader = NewShader(vShaderCode, fShaderCode, gShaderFile != NULL ? gShaderCode : NULL);
 
@@ -67,7 +71,7 @@ static Texture2D* loadTextureFromFile(const char* file, bool alpha) {
     int width, height, nrChannels;
     unsigned char* data = stbi_load(file, &width, &height, &nrChannels, 0);
 
-    TextureGenerate(texture, width, height, data);
+    GenerateTexture(texture, width, height, data);
 
     stbi_image_free(data);
     return texture;
@@ -84,7 +88,7 @@ static Texture2D* getFromTexture(Key key) {
     if (!isInitialized)
         initializeResourceManager();
 
-    void* result = getFromMap(&instance.shaders, key);
+    void* result = getFromMap(&instance.textures, key);
 
     if (!result) {
         fprintf(stderr, "Error: Texture not found for the given key\n");

@@ -3,12 +3,21 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 /*
  * Basic utilities
  */
+long getline(char** lineptr, size_t* n, FILE* stream);
 char* readFile(const char* filename);
+void readAndProcessLine(const char* filename, void (*processLine)(const char* line, void* context), void* context);
 char* custom_strdup(const char* str);
+
+#define DYNAMIC_ARRAY_FOR_EACH(arr, type, var) \
+    for (type* var = (type*)((arr)->array), *end = var + (arr)->size; var < end; ++var)
+
+#define DYNAMIC_ARRAY_FOR_EACH_PTR(arr, type, var) \
+    for (type** var = (type**)((arr)->array), ** end = var + (arr)->size; var < end; ++var)
 
 /*
  * DynamicArray
@@ -22,8 +31,10 @@ typedef struct {
 
 void initialize(DynamicArray* dynArray, size_t initialCapacity, size_t elementSize);
 void push(DynamicArray* dynArray, const void* value);
+void pushPtr(DynamicArray* dynArray, const void* value);
 void insert(DynamicArray* dynArray, size_t position, const void* start, size_t count);
-void cleanup(DynamicArray* dynArray);
+void clearArray(DynamicArray* dynArray, void (*cleanupCallback)(void*));
+void cleanup(DynamicArray* dynArray, void (*cleanupCallback)(void*));
 
 /*
  * DynamicMap using Red Black Tree data structure

@@ -14,9 +14,9 @@ static void checkShaderCompileErrors(unsigned int object, const char* type) {
             fprintf(stderr, "ERROR::SHADER: Compile-time error: Type: %s\n", type);
         }
     } else {
-        glGetShaderiv(object, GL_LINK_STATUS, &success);
+        glGetProgramiv(object, GL_LINK_STATUS, &success);
         if (!success) {
-            glGetShaderInfoLog(object, 1024, NULL, infoLog);
+            glGetProgramInfoLog(object, 1024, NULL, infoLog);
             fprintf(stderr, "ERROR::SHADER: Link-time error: Type: %s\n", type);
         }
     }
