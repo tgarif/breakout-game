@@ -4,17 +4,22 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "ball_object.h"
 #include "game_level.h"
 #include "game_object.h"
+#include "mathc.h"
 #include "resource_manager.h"
 #include "shader.h"
 #include "sprite_renderer.h"
 
 const mfloat_t PLAYER_SIZE[VEC2_SIZE] = {100.0f, 20.0f};
 const float PLAYER_VELOCITY = 500.0f;
+const mfloat_t INITIAL_BALL_VELOCITY[VEC2_SIZE] = {100.0f, -350.0f};
+const float BALL_RADIUS = 12.5f;
 
 static SpriteRenderer* renderer = NULL;
 static GameObject* player = NULL;
+static BallObject* ball = NULL;
 
 Game* NewGame(Game* game, unsigned int width, unsigned int height) {
     *game = (Game){
@@ -61,6 +66,9 @@ void InitGame(Game* game) {
         game->height - PLAYER_SIZE[1]  // #
     };
     player = NewGameObject(playerPos, (mfloat_t[VEC2_SIZE]){PLAYER_SIZE[0], PLAYER_SIZE[1]}, GetTexture("paddle"), NULL, NULL);
+    mfloat_t ballPos[VEC2_SIZE];
+    vec2_add(ballPos, playerPos, (mfloat_t[VEC2_SIZE]){PLAYER_SIZE[0] / 2.0f - BALL_RADIUS, -BALL_RADIUS * 2.0f});
+    ball = NewBallObject(ballPos, BALL_RADIUS, (mfloat_t*)INITIAL_BALL_VELOCITY, GetTexture("face"));
 }
 
 void ProcessGameInput(Game* game, float dt) {
@@ -68,17 +76,26 @@ void ProcessGameInput(Game* game, float dt) {
         float velocity = PLAYER_VELOCITY * dt;
 
         if (game->keys[GLFW_KEY_A]) {
-            if (player->position[0] >= 0.0f)
+            if (player->position[0] >= 0.0f) {
                 player->position[0] -= velocity;
+                if (ball->stuck)
+                    ball->base.position[0] -= velocity;
+            }
         }
         if (game->keys[GLFW_KEY_D]) {
-            if (player->position[0] <= game->width - player->size[0])
+            if (player->position[0] <= game->width - player->size[0]) {
                 player->position[0] += velocity;
+                if (ball->stuck)
+                    ball->base.position[0] += velocity;
+            }
         }
+        if (game->keys[GLFW_KEY_SPACE])
+            ball->stuck = false;
     }
 }
 
 void UpdateGame(Game* game, float dt) {
+    MoveBall(ball, dt, game->width);
 }
 
 void RenderGame(Game* game) {
@@ -97,6 +114,8 @@ void RenderGame(Game* game) {
         DrawLevel(level, renderer);
         // Draw player
         DrawGameObject(player, renderer);
+        // Draw ball
+        DrawBall(ball, renderer);
     }
 }
 
