@@ -29,6 +29,7 @@ typedef struct {
 typedef struct {
     GameState state;
     bool keys[1024];
+    bool keysProcessed[1024];
     unsigned int width, height;
     DynamicArray levels;
     unsigned int level;

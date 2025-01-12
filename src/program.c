@@ -6,6 +6,9 @@
 #include "game.h"
 #include "resource_manager.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
 
@@ -26,6 +29,20 @@ int main() {
     glfwWindowHint(GLFW_RESIZABLE, false);
 
     GLFWwindow* window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Breakout", NULL, NULL);
+
+    int width, height, channels;
+    unsigned char* image = stbi_load("icons/breaker.png", &width, &height, &channels, 4);
+    if (!image) {
+        fprintf(stderr, "Failed to load icon image.\n");
+    } else {
+        GLFWimage icons[1];
+        icons[0].width = width;
+        icons[0].height = height;
+        icons[0].pixels = image;
+        glfwSetWindowIcon(window, 1, icons);
+        stbi_image_free(image);
+    }
+
     glfwMakeContextCurrent(window);
 
     if (glewInit() != GLEW_OK) {
@@ -77,8 +94,10 @@ void key_callback(GLFWwindow* window, int key, int scancode __attribute__((unuse
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS)
             Breakout.keys[key] = true;
-        else if (action == GLFW_RELEASE)
+        else if (action == GLFW_RELEASE) {
             Breakout.keys[key] = false;
+            Breakout.keysProcessed[key] = false;
+        }
     }
 }
 

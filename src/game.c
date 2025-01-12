@@ -33,6 +33,7 @@ static GameObject* player = NULL;
 static BallObject* ball = NULL;
 static PostProcessor* effects = NULL;
 static ma_engine engine;
+static ma_sound backgroundMusic;
 static TextRenderer* text = NULL;
 
 static Direction VectorDirection(mfloat_t* target) {
@@ -145,10 +146,11 @@ static void ActivatePowerUp(PowerUp* powerup) {
 
 Game* NewGame(Game* game, unsigned int width, unsigned int height) {
     *game = (Game){
-        .state = GAME_ACTIVE,
+        .state = GAME_MENU,
         .width = width,
         .height = height,
         .keys = {false},
+        .keysProcessed = {false},
         .lives = 3,
     };
     initialize(&game->levels, 4, sizeof(GameLevel*));
@@ -212,13 +214,40 @@ void InitGame(Game* game) {
     ball = NewBallObject(ballPos, BALL_RADIUS, (mfloat_t*)INITIAL_BALL_VELOCITY, GetTexture("face"));
     // Audio
     ma_engine_init(NULL, &engine);
-    ma_engine_play_sound(&engine, "audio/breakout.mp3", NULL);
+    ma_sound_init_from_file(&engine, "audio/breakout.mp3", MA_SOUND_FLAG_STREAM, NULL, NULL, &backgroundMusic);
+    ma_sound_set_looping(&backgroundMusic, MA_TRUE);
+    ma_sound_start(&backgroundMusic);
     // Text
     text = NewTextRenderer(game->width, game->height);
     LoadText(text, "fonts/ocraext.TTF", 24);
 }
 
 void ProcessGameInput(Game* game, float dt) {
+    if (game->state == GAME_MENU) {
+        if (game->keys[GLFW_KEY_ENTER] && !game->keysProcessed[GLFW_KEY_ENTER]) {
+            game->state = GAME_ACTIVE;
+            game->keysProcessed[GLFW_KEY_ENTER] = true;
+        }
+        if (game->keys[GLFW_KEY_W] && !game->keysProcessed[GLFW_KEY_W]) {
+            game->level = (game->level + 1) % 4;
+            game->keysProcessed[GLFW_KEY_W] = true;
+        }
+        if (game->keys[GLFW_KEY_S] && !game->keysProcessed[GLFW_KEY_S]) {
+            if (game->level > 0)
+                --game->level;
+            else
+                game->level = 3;
+
+            game->keysProcessed[GLFW_KEY_S] = true;
+        }
+    }
+    if (game->state == GAME_WIN) {
+        if (game->keys[GLFW_KEY_ENTER]) {
+            game->keysProcessed[GLFW_KEY_ENTER] = true;
+            effects->chaos = false;
+            game->state = GAME_MENU;
+        }
+    }
     if (game->state == GAME_ACTIVE) {
         float velocity = PLAYER_VELOCITY * dt;
 
@@ -265,10 +294,18 @@ void UpdateGame(Game* game, float dt) {
         }
         ResetPlayer(game);
     }
+    // Check win condition
+    GameLevel* level = ((GameLevel**)(game->levels.array))[game->level];
+    if (game->state == GAME_ACTIVE && IsLevelCompleted(level)) {
+        ResetLevel(game);
+        ResetPlayer(game);
+        effects->chaos = true;
+        game->state = GAME_WIN;
+    }
 }
 
 void RenderGame(Game* game) {
-    if (game->state == GAME_ACTIVE) {
+    if (game->state == GAME_ACTIVE || game->state == GAME_MENU || game->state == GAME_WIN) {
         BeginPostProcessRender();
         // Draw background
         DrawSprite(
@@ -298,6 +335,14 @@ void RenderGame(Game* game) {
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "Lives:%u", game->lives);
         RenderText(text, buffer, 5.0f, 5.0f, 1.0f, NULL);
+    }
+    if (game->state == GAME_MENU) {
+        RenderText(text, "Press ENTER to start", 490.0f, game->height / 2.0f, 1.0f, NULL);
+        RenderText(text, "Press W or S to select level", 485.0f, game->height / 2.0f + 20.0f, 0.75f, NULL);
+    }
+    if (game->state == GAME_WIN) {
+        RenderText(text, "You WON!!!", 560.0f, game->height / 2.0f - 20.0f, 1.0f, (mfloat_t[VEC3_SIZE]){0.0f, 1.0f, 0.0f});
+        RenderText(text, "Press ENTER to retry or ESC to quit", 370.0f, game->height / 2.0f, 1.0f, (mfloat_t[VEC3_SIZE]){1.0f, 1.0f, 0.0f});
     }
 }
 
@@ -436,17 +481,17 @@ void UpdatePowerUps(Game* game, float dt) {
 }
 
 void SpawnPowerUps(Game* game, GameObject* block) {
-    if (ShouldSpawn(75)) {
+    if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("speed", (mfloat_t[VEC3_SIZE]){0.5f, 0.5f, 0.5f}, 0.0f, block->position, GetTexture("powerup_speed")));
-    } else if (ShouldSpawn(75)) {
+    } else if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("sticky", (mfloat_t[VEC3_SIZE]){1.0f, 0.5f, 1.0f}, 20.0f, block->position, GetTexture("powerup_sticky")));
-    } else if (ShouldSpawn(75)) {
+    } else if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("pass-through", (mfloat_t[VEC3_SIZE]){0.5f, 1.0f, 0.5f}, 10.0f, block->position, GetTexture("powerup_passthrough")));
-    } else if (ShouldSpawn(75)) {
+    } else if (ShouldSpawn(15)) {
         pushPtr(&game->powerups, NewPowerUp("pad-size-increase", (mfloat_t[VEC3_SIZE]){1.0f, 0.6f, 0.4f}, 0.0f, block->position, GetTexture("powerup_increase")));
-    } else if (ShouldSpawn(15)) {
+    } else if (ShouldSpawn(10)) {
         pushPtr(&game->powerups, NewPowerUp("confuse", (mfloat_t[VEC3_SIZE]){1.0f, 0.3f, 0.3f}, 15.0f, block->position, GetTexture("powerup_confuse")));
-    } else if (ShouldSpawn(15)) {
+    } else if (ShouldSpawn(10)) {
         pushPtr(&game->powerups, NewPowerUp("chaos", (mfloat_t[VEC3_SIZE]){0.9f, 0.25f, 0.25f}, 15.0f, block->position, GetTexture("powerup_chaos")));
     }
 }
@@ -464,5 +509,6 @@ void DetroyGame() {
     if (effects) {
         CleanupPostProcess(effects);
     }
+    ma_sound_uninit(&backgroundMusic);
     ma_engine_uninit(&engine);
 }

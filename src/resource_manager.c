@@ -3,11 +3,9 @@
 #include <GL/glew.h>
 
 #include "shader.h"
+#include "stb_image.h"
 #include "texture.h"
 #include "util.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 
 static ResourceManager instance;
 static uint8_t isInitialized = 0;

@@ -1,6 +1,7 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Iinclude -Iopengl/include
+WINDRES = x86_64-w64-mingw32-windres
 
 # Linux-specific settings
 LDFLAGS_LINUX = -L./opengl/lib_linux -Wl,-rpath,./opengl/lib_linux -lglfw3 -lGLEW -ldl -lm -lGL -lassimp -lfreetype
@@ -15,6 +16,12 @@ TARGET_WINDOWS = $(BUILDDIR_WINDOWS)/breakout.exe
 # Source files
 SRCDIR = src
 SRC = $(wildcard $(SRCDIR)/*.c)
+TARGET_PNG = icons/breaker.png
+ICO_FILE = icons/breaker.ico
+
+# Ico resource
+ICON_RC = icons/breaker.rc
+ICON_RES = build_windows/breaker.res
 
 # Build rules
 all: linux windows
@@ -32,8 +39,18 @@ windows: $(BUILDDIR_WINDOWS) $(TARGET_WINDOWS)
 $(BUILDDIR_WINDOWS):
 	mkdir -p $(BUILDDIR_WINDOWS)
 
-$(TARGET_WINDOWS): $(SRC)
-	x86_64-w64-mingw32-gcc $(CFLAGS) $^ -o $@ $(LDFLAGS_WINDOWS) -mwindows
+$(TARGET_WINDOWS): $(SRC) $(ICON_RES)
+	x86_64-w64-mingw32-gcc $(CFLAGS) $(SRC) $(ICON_RES) -o $(TARGET_WINDOWS) $(LDFLAGS_WINDOWS) -mwindows
+
+create-ico:
+	@convert $(TARGET_PNG) -resize 16x16 icons/tmp_breaker_16.png
+	@convert $(TARGET_PNG) -resize 32x32 icons/tmp_breaker_32.png
+	@convert $(TARGET_PNG) -resize 48x48 icons/tmp_breaker_48.png
+	@icotool -c -o $(ICO_FILE) icons/tmp_breaker_16.png icons/tmp_breaker_32.png icons/tmp_breaker_48.png $(TARGET_PNG)
+	@rm -f icons/tmp_breaker_*.png
+
+$(ICON_RES): $(ICON_RC)
+	$(WINDRES) $(ICON_RC) -O coff -o $(ICON_RES)
 
 run_linux:
 	./$(TARGET_LINUX)
