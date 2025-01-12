@@ -5,6 +5,8 @@
 
 Breakout game using C and OpenGL, a popular API for GPU rendering
 
+![screenshot](./screenshot.png)
+
 ## Overview
 
 The game is a rewrite of Breakout game from https://learnopengl.com/In-Practice/2D-Game/Breakout.
