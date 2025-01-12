@@ -13,35 +13,48 @@ LDFLAGS_WINDOWS = -L./opengl/lib_windows -lglfw3 -lglew32 -lopengl32 -lgdi32 -lu
 BUILDDIR_WINDOWS = build_windows
 TARGET_WINDOWS = $(BUILDDIR_WINDOWS)/breakout.exe
 
-# Source files
+# Source and object files
 SRCDIR = src
+OBJDIR_LINUX = $(BUILDDIR_LINUX)/obj
+OBJDIR_WINDOWS = $(BUILDDIR_WINDOWS)/obj
 SRC = $(wildcard $(SRCDIR)/*.c)
+OBJ_LINUX = $(SRC:$(SRCDIR)/%.c=$(OBJDIR_LINUX)/%.o)
+OBJ_WINDOWS = $(SRC:$(SRCDIR)/%.c=$(OBJDIR_WINDOWS)/%.o)
+
+# Icon files
 TARGET_PNG = icons/breaker.png
 ICO_FILE = icons/breaker.ico
-
-# Ico resource
 ICON_RC = icons/breaker.rc
-ICON_RES = build_windows/breaker.res
+ICON_RES = $(BUILDDIR_WINDOWS)/breaker.res
 
 # Build rules
 all: linux windows
 
+# Linux build
 linux: $(BUILDDIR_LINUX) $(TARGET_LINUX)
 
 $(BUILDDIR_LINUX):
-	mkdir -p $(BUILDDIR_LINUX)
+	mkdir -p $(BUILDDIR_LINUX) $(OBJDIR_LINUX)
 
-$(TARGET_LINUX): $(SRC)
+$(OBJDIR_LINUX)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET_LINUX): $(OBJ_LINUX)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS_LINUX)
 
+# Windows build
 windows: $(BUILDDIR_WINDOWS) $(TARGET_WINDOWS)
 
 $(BUILDDIR_WINDOWS):
-	mkdir -p $(BUILDDIR_WINDOWS)
+	mkdir -p $(BUILDDIR_WINDOWS) $(OBJDIR_WINDOWS)
 
-$(TARGET_WINDOWS): $(SRC) $(ICON_RES)
-	x86_64-w64-mingw32-gcc $(CFLAGS) $(SRC) $(ICON_RES) -o $(TARGET_WINDOWS) $(LDFLAGS_WINDOWS) -mwindows
+$(OBJDIR_WINDOWS)/%.o: $(SRCDIR)/%.c
+	x86_64-w64-mingw32-gcc $(CFLAGS) -c $< -o $@
 
+$(TARGET_WINDOWS): $(OBJ_WINDOWS) $(ICON_RES)
+	x86_64-w64-mingw32-gcc $(CFLAGS) $^ -o $@ $(LDFLAGS_WINDOWS) -mwindows
+
+# Icon generation
 create-ico:
 	@convert $(TARGET_PNG) -resize 16x16 icons/tmp_breaker_16.png
 	@convert $(TARGET_PNG) -resize 32x32 icons/tmp_breaker_32.png
@@ -50,8 +63,9 @@ create-ico:
 	@rm -f icons/tmp_breaker_*.png
 
 $(ICON_RES): $(ICON_RC)
-	$(WINDRES) $(ICON_RC) -O coff -o $(ICON_RES)
+	$(WINDRES) $(ICON_RC) -O coff -o $@
 
+# Run rules
 run_linux:
 	./$(TARGET_LINUX)
 
@@ -61,7 +75,7 @@ run_linux_debug:
 run_windows:
 	wine ./$(TARGET_WINDOWS)
 
-# Clean rule
+# Clean rules
 clean:
 	rm -rf $(BUILDDIR_LINUX) $(BUILDDIR_WINDOWS)
 
